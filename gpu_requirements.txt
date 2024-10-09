@@ -1,0 +1,14 @@
+jax[cuda]
+flax
+optax
+einops
+tqdm
+ml_collections
+wandb
+gcsfs
+tux @ git+https://github.com/forhaoliu/tux.git
+Pillow
+ffmpeg-python
+decord
+ipdb
+ringattention
