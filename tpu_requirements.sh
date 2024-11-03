@@ -14,9 +14,9 @@ pip install --upgrade pip
 # Python dependencies
 cat > $HOME/tpu_requirements.txt <<- EndOfFile
 -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-jax[tpu]
-flax
-optax
+jax[tpu]==0.4.34
+flax==0.10.1
+optax==0.2.3
 einops
 tqdm
 ml_collections

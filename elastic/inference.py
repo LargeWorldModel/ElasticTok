@@ -158,7 +158,7 @@ class ElasticInference(object):
     def encode(self, params, batch, n_codes):
         B, L = batch['vision'].shape[:2]
         block_size = self.elastic_config.max_toks
-        assert self.elastic_config.max_toks <= n_codes <= block_size
+        assert self.elastic_config.min_toks <= n_codes <= block_size
         n_blocks = L // block_size
         encoding_mask = np.tile(np.arange(block_size) < n_codes, (n_blocks,))
         encoding_mask = encoding_mask[None].repeat(B, axis=0)

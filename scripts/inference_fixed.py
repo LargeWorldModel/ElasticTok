@@ -115,7 +115,7 @@ def main(argv):
         fps=FLAGS.fps)
     inference = ElasticInference(
         model, elastic_config, data_config, mesh, node_info,
-        param_partition.params, FLAGS.search_alg
+        param_partition.params, None
     )
 
     is_image = any([FLAGS.input_path.endswith(ext) for ext in IMAGE_EXT])
@@ -139,19 +139,18 @@ def main(argv):
         batch = {k: v[None] for k, v in batch.items()}
         return batch
 
-    print(f"Threshold: {FLAGS.threshold}")
     with mesh:
         params = checkpointer.load_trainstate_checkpoint(
             FLAGS.load_checkpoint, param_shapes, shard_fns
         )[1].unfreeze()
         print('Loaded model')
 
-        recons, gts, zs = [], [], []
+        zs = []
         for i in range(n_chunks):
             batch = get_batch(data[i * FLAGS.max_blocks_per_chunk:(i + 1) * FLAGS.max_blocks_per_chunk])
             z = inference.encode(params, batch, FLAGS.n_codes)
+            print('Encoded', [z.shape for z in z[0]])
             zs.extend(z[0])
-            print([z.shape for z in zs])
         pickle.dump(zs, open(osp.join(FLAGS.output_folder, 'encodings.pkl'), 'wb'))
     print('Done')
 

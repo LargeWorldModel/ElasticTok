@@ -1,6 +1,6 @@
-jax[cuda]
-flax
-optax
+jax[cuda]==0.4.34
+flax==0.10.1
+optax==0.2.3
 einops
 tqdm
 ml_collections
