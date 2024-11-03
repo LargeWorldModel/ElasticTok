@@ -90,6 +90,23 @@ class ElasticInference(object):
         )
 
     @cached_property
+    def _encode(self):
+        def fn(params, batch, encoding_mask):
+            batch = with_sharding_constraint(batch, PS(('dp', 'fsdp'), 'sp'))
+            batch['vision'] = batch['vision'].astype(jnp.float32) / 127.5 - 1
+            z, _  = self.model.apply(
+                params, batch['vision'], encoding_mask,
+                batch['attention_mask'], batch['segment_ids'], batch['position_ids'],
+                training=False, method=self.model.encode
+            )
+            return z
+        return pjit(
+            fn,
+            in_shardings=(self.param_partition, PS(('dp', 'fsdp'), 'sp'), PS()),
+            out_shardings=PS(),
+        )
+
+    @cached_property
     def _recon(self):
         def fn(params, batch, encoding_mask):
             batch = with_sharding_constraint(batch, PS(('dp', 'fsdp'), 'sp'))
@@ -137,6 +154,17 @@ class ElasticInference(object):
             out_shardings=self._cache_spec,
         )
         return {'cache': sharded_init_fn()}
+
+    def encode(self, params, batch, n_codes):
+        B, L = batch['vision'].shape[:2]
+        block_size = self.elastic_config.max_toks
+        assert self.elastic_config.min_toks <= n_codes <= block_size
+        n_blocks = L // block_size
+        encoding_mask = np.tile(np.arange(block_size) < n_codes, (n_blocks,))
+        encoding_mask = encoding_mask[None].repeat(B, axis=0)
+        z = self._encode(params, batch, encoding_mask)
+        z = extract_codes(z, encoding_mask, block_size)
+        return z
 
     def inference_linear(self, params, batch, threshold, default_prop_codes=1.0, max_prop_codes=1.0, n_interp=100, log=False):
         B, L = batch['vision'].shape[:2]

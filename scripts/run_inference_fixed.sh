@@ -5,16 +5,16 @@ export PROJECT_DIR="$( cd -- "$( dirname -- "$SCRIPT_DIR" )" &> /dev/null && pwd
 cd $PROJECT_DIR
 export PYTHONPATH="$PYTHONPATH:$PROJECT_DIR"
 
-export checkpoint_path=""
+export checkpoint_path="gs://rll-tpus-wilson-us-central2/models/elastictok-vae-params"
 
 # NOTE theta=5e6 (different from the FSQ version)
 
     #--input_path='example/dog.jpg' \
-python3 -u scripts/inference.py \
+python3 -u scripts/inference_fixed.py \
     --input_path='example/flower.mp4' \
     --output_folder='example/outputs_vae' \
+    --n_codes=512 \
     --max_blocks_per_chunk=4 \
-    --threshold=0.003 \
     --mesh_dim='!1,1,-1,1' \
     --dtype='fp32' \
     --load_elastic_config='200m' \
