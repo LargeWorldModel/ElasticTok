@@ -107,6 +107,23 @@ class ElasticInference(object):
         )
 
     @cached_property
+    def _decode(self):
+        def fn(params, batch):
+            batch = with_sharding_constraint(batch, PS(('dp', 'fsdp'), 'sp'))
+            recon = self.model.apply(
+                params, batch['z'], batch['encoding_mask'],
+                batch['attention_mask'], batch['segment_ids'], batch['position_ids'],
+                method=self.model.decode
+            )
+            recon = ((recon + 1) * 127.5).astype(jnp.uint8)
+            return recon
+        return pjit(
+            fn,
+            in_shardings=(self.param_partition, PS()),
+            out_shardings=PS(),
+        )
+
+    @cached_property
     def _recon(self):
         def fn(params, batch, encoding_mask):
             batch = with_sharding_constraint(batch, PS(('dp', 'fsdp'), 'sp'))
@@ -165,6 +182,27 @@ class ElasticInference(object):
         z = self._encode(params, batch, encoding_mask)
         z = extract_codes(z, encoding_mask, block_size)
         return z
+
+    def decode(self, params, zs):
+        # zs is a list of lists
+        # each list is a since batch elem, which conists of a list of len # number of blocks
+        B = len(zs)
+        block_size = self.elastic_config.max_toks
+        n_blocks = len(zs[0])
+        assert all([len(z) == n_blocks for z in zs])
+        ntoks = np.array([[len(z_i) for z_i in z] for z in zs], dtype=np.int32)
+        encoding_mask = np.arange(block_size, dtype=np.int32)[None, None] < ntoks[..., None]
+        encoding_mask = encoding_mask.reshape(B, n_blocks * block_size)
+        zs = np.stack([np.concatenate([
+            np.pad(z_i, ((0, block_size - len(z_i)), (0, 0))) for z_i in z], axis=0) for z in zs])
+        batch = dict(
+            z=zs, encoding_mask=encoding_mask,
+            attention_mask=np.ones((B, n_blocks * block_size), dtype=bool),
+            segment_ids=np.zeros((B, n_blocks * block_size), dtype=np.int32),
+            position_ids=np.arange(n_blocks * block_size, dtype=np.int32)[None].repeat(B, axis=0),
+        )
+        recon = self._decode(params, batch)
+        return recon
 
     def inference_linear(self, params, batch, threshold, default_prop_codes=1.0, max_prop_codes=1.0, n_interp=100, log=False):
         B, L = batch['vision'].shape[:2]

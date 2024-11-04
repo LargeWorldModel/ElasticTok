@@ -7,6 +7,7 @@ import numpy as np
 import pickle
 from absl.app import run
 
+import einops
 import jax
 import jax.numpy as jnp
 
@@ -145,13 +146,26 @@ def main(argv):
         )[1].unfreeze()
         print('Loaded model')
 
-        zs = []
+        recons, gts, zs = [], [], []
         for i in range(n_chunks):
             batch = get_batch(data[i * FLAGS.max_blocks_per_chunk:(i + 1) * FLAGS.max_blocks_per_chunk])
             z = inference.encode(params, batch, FLAGS.n_codes)
             print('Encoded', [z.shape for z in z[0]])
+            recon = jax.device_get(inference.decode(params, z))
+            recon = extract_and_reshape(recon, FLAGS.resolution, elastic_config)[0]
+            gt = extract_and_reshape(batch['vision'], FLAGS.resolution, elastic_config)[0]
+            recons.append(recon)
+            gts.append(gt)
             zs.extend(z[0])
         pickle.dump(zs, open(osp.join(FLAGS.output_folder, 'encodings.pkl'), 'wb'))
+        recons = np.concatenate(recons, axis=0)
+        gts = np.concatenate(gts, axis=0)
+        viz = np.concatenate((gts, recons), axis=2)
+        if is_image:
+            viz = viz[[0]]
+            save(viz, fname=osp.join(FLAGS.output_folder, 'viz.jpg'))
+        else:
+            save(viz, fname=osp.join(FLAGS.output_folder, 'viz.mp4'), fps=FLAGS.fps, crf=23)
     print('Done')
 
 

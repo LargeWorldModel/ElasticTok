@@ -5,7 +5,7 @@ export PROJECT_DIR="$( cd -- "$( dirname -- "$SCRIPT_DIR" )" &> /dev/null && pwd
 cd $PROJECT_DIR
 export PYTHONPATH="$PYTHONPATH:$PROJECT_DIR"
 
-export checkpoint_path="gs://rll-tpus-wilson-us-central2/models/elastictok-vae-params"
+export checkpoint_path=""
 
 # NOTE theta=5e6 (different from the FSQ version)
 
